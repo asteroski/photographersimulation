@@ -3,510 +3,61 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fotoğrafçı Dükkanı Simülatörü</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#1a1a2e;color:#eee;font-family:'Segoe UI',Tahoma,sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column;align-items:center}
-#header{width:100%;max-width:1100px;display:flex;justify-content:space-between;align-items:center;padding:8px 16px;background:#16213e;border-bottom:2px solid #0f3460}
-#header h1{font-size:18px;color:#e94560}
-#stats{display:flex;gap:14px;font-size:13px}
-#stats span{background:#0f3460;padding:4px 12px;border-radius:6px}
-#wrap{position:relative;width:1060px;height:580px;margin-top:6px;border:2px solid #0f3460;border-radius:8px;overflow:hidden}
-canvas{display:block}
-#flash{position:absolute;top:0;left:0;width:100%;height:100%;background:#fff;opacity:0;pointer-events:none;z-index:5}
-#dlg{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(15,52,96,.95);border:2px solid #e94560;border-radius:10px;padding:12px 20px;max-width:700px;width:90%;text-align:center;font-size:14px;line-height:1.5;display:none;z-index:8}
-#dlg .sp{color:#e94560;font-weight:bold;margin-bottom:4px}
-#svcPanel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(22,33,62,.97);border:2px solid #0f3460;border-radius:12px;padding:20px;display:none;z-index:10;min-width:340px}
-#svcPanel h3{text-align:center;margin-bottom:12px;color:#e94560}
-.svc-btn{display:block;width:100%;background:#0f3460;border:1px solid #1a4a8a;color:#eee;padding:10px 16px;border-radius:6px;cursor:pointer;font-size:13px;text-align:left;margin-bottom:6px;transition:background .2s}
-.svc-btn:hover{background:#1a4a8a}
-.svc-btn .pr{float:right;color:#4ecca3;font-weight:bold}
-#notif{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#4ecca3;color:#1a1a2e;padding:8px 20px;border-radius:8px;font-size:14px;font-weight:bold;display:none;z-index:10}
-</style>
+<title>Fotoğrafçı Simülatörü</title>
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div id="header">
-  <h1>📷 Fotoğrafçı Dükkanı Simülatörü</h1>
-  <div id="stats">
-    <span>💰 <b id="moneyEl">0</b> ₺</span>
-    <span>👥 Müşteri: <b id="custEl">0</b></span>
-    <span>⭐ Puan: <b id="scoreEl">0</b></span>
+<div id="game-wrapper">
+  <canvas id="game-canvas"></canvas>
+  <div id="ui-layer">
+    <div id="ui-top">
+      <div class="stat-box" id="stat-money">💰 <span id="money-display">0</span> ₺</div>
+      <div class="stat-box" id="stat-day">📅 Gün <span id="day-display">1</span></div>
+      <div class="stat-box" id="stat-time">⏰ <span id="time-display">09:00</span></div>
+      <div class="stat-box" id="stat-cust">👥 <span id="cust-display">0</span> müşteri</div>
+      <div class="stat-box" id="stat-lvl">⭐ Seviye <span id="lvl-display">1</span></div>
+    </div>
+    <div id="ui-bottom">
+      <div id="task-panel">
+        <div id="task-text">👋 Müşteriye yaklaşarak hizmete başla</div>
+        <div id="task-progress"><div id="task-progress-fill"></div></div>
+      </div>
+      <div id="customer-info" class="hidden">
+        <div id="ci-name"></div>
+        <div id="ci-service"></div>
+        <div id="ci-patience"><span id="ci-patience-text"></span><div id="ci-patience-bar"><div id="ci-patience-fill"></div></div></div>
+        <div id="ci-fee"></div>
+      </div>
+    </div>
+    <div id="panel-overlay" class="hidden">
+      <div class="panel-box" id="service-panel">
+        <h3>Hizmet Seçin</h3>
+        <div id="service-list"></div>
+      </div>
+      <div class="panel-box hidden" id="sell-panel">
+        <h3>Ne Satmak İstiyorsunuz?</h3>
+        <div id="sell-list"></div>
+      </div>
+      <div class="panel-box hidden" id="day-report">
+        <h3>📊 Gün Sonu Raporu</h3>
+        <div id="report-content"></div>
+        <button id="report-btn">Devam Et</button>
+      </div>
+    </div>
+    <div id="flash"></div>
+    <div id="dialog-box" class="hidden"><div class="speaker"></div><div class="text"></div></div>
+    <div id="notif" class="hidden"></div>
+    <div id="controls-hint"></div>
   </div>
 </div>
-<div id="wrap">
-  <canvas id="gc" width="1060" height="580"></canvas>
-  <div id="flash"></div>
-  <div id="dlg"><div class="sp" id="dlgSp"></div><div id="dlgTx"></div></div>
-  <div id="svcPanel"><h3 id="svcTitle">Hizmet Seçin</h3><div id="svcList"></div></div>
-  <div id="notif"></div>
-</div>
-<script>
-const C=document.getElementById('gc'),X=C.getContext('2d'),W=1060,H=580;
-let money=0,customers=0,score=0;
-
-const SERVICES=[
-  {id:'vesikalik',name:'Vesikalık Fotoğraf',icon:'🛂',price:100,time:3000},
-  {id:'portre',name:'Portre Fotoğrafı',icon:'🖼️',price:150,time:3500},
-  {id:'dugun',name:'Düğün Fotoğrafı',icon:'💒',price:500,time:5000},
-  {id:'poz',name:'Profesyonel Poz',icon:'📸',price:200,time:3000},
-  {id:'satis',name:'Ürün Satışı',icon:'🛒',price:0,time:2000},
-  {id:'film',name:'Film Yıkama / Kaset Dijitalleştirme',icon:'🎞️',price:250,time:4000},
-];
-const ITEMS=[
-  {name:'Albüm',price:150},{name:'Çerçeve',price:80},
-  {name:'Fotoğraf Kağıdı',price:40},{name:'Fotoğraf Makinesi',price:3500},
-];
-const NAMES=['Ali','Ayşe','Mehmet','Fatma','Zeynep','Mustafa','Elif','Hasan','Emine','İbrahim','Hatice','Ömer','Merve','Burak','Selin','Arda','Cansu','Kerem','Derya','Onur'];
-const COLORS=['#e07b54','#6ba3be','#be6b9a','#8ebe6b','#bea86b','#6bbeb0','#c47bbe','#7b9ebe'];
-const PHRASES=[
-  'Vesikalık fotoğrafım lazım.',
-  'Portre fotoğrafı çektirmek istiyorum.',
-  'Düğün fotoğrafı için geldim.',
-  'Profesyonel poz çektirmek istiyorum.',
-  'Bir şeyler satın almak istiyorum.',
-  'Eski film ve kasetlerim var, yıkama ve dijitalleştirme lazım.',
-];
-
-function R(a,b){return Math.floor(Math.random()*(b-a+1))+a}
-function P(a){return a[R(0,a.length-1)]}
-function L(a,b,t){return a+(b-a)*t}
-function D(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
-function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v))}
-
-let state='idle',curSvc=null,selItem=null;
-let cam={x:530,y:380};
-let cust=null;
-let workTimer=0;
-let particles=[];
-let keys={};
-const SPEED=3;
-let target=null; // {x,y,label} - where to go next
-let tick=0; // animation tick
-
-function isBlocked(x,y){
-  if(x<20||x>W-20||y<230||y>H-10)return true;
-  if(x>528&&x<542&&y>220&&y<580){
-    if(y>360&&y<440)return false; // door gap
-    return true;
-  }
-  if(x>310&&x<530&&y>265&&y<340)return true;
-  if(x>15&&x<200&&y>385&&y<485)return true;
-  if(x>50&&x<165&&y>475&&y<525)return true;
-  if(x>770&&x<830&&y>425&&y<485)return true;
-  return false;
-}
-function getZone(x,y){return x>540?'studio':'entrance'}
-
-function dlg(sp,tx,ms){
-  document.getElementById('dlgSp').textContent=sp;
-  document.getElementById('dlgTx').textContent=tx;
-  document.getElementById('dlg').style.display='block';
-  if(ms)setTimeout(()=>document.getElementById('dlg').style.display='none',ms);
-}
-function hideDlg(){document.getElementById('dlg').style.display='none'}
-
-function svcPanel(title,list,cb){
-  document.getElementById('svcTitle').textContent=title;
-  const el=document.getElementById('svcList');el.innerHTML='';
-  list.forEach(s=>{
-    const b=document.createElement('button');b.className='svc-btn';
-    b.innerHTML=s.html;b.onclick=()=>{document.getElementById('svcPanel').style.display='none';cb(s.data)};
-    el.appendChild(b);
-  });
-  document.getElementById('svcPanel').style.display='block';
-}
-
-function notify(tx){
-  const n=document.getElementById('notif');n.textContent=tx;n.style.display='block';
-  setTimeout(()=>n.style.display='none',2200);
-}
-function flash(){
-  const f=document.getElementById('flash');f.style.opacity='.9';
-  setTimeout(()=>f.style.opacity='0',150);
-}
-function updateUI(){
-  document.getElementById('moneyEl').textContent=money;
-  document.getElementById('custEl').textContent=customers;
-  document.getElementById('scoreEl').textContent=score;
-}
-function spawnParticles(x,y,n,col){
-  for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*5,vy:-Math.random()*4-1,s:Math.random()*4+2,col,l:1});
-}
-
-function spawnCust(){
-  cust={name:P(NAMES),color:P(COLORS),x:530,y:590,phase:'enter'};
-  customers++;updateUI();
-}
-
-function showSell(){
-  svcPanel('Ne Satmak İstiyorsunuz?',ITEMS.map(it=>({
-    html:`${it.name} <span class="pr">${it.price} ₺</span>`,data:it
-  })),item=>{
-    selItem=item;curSvc=SERVICES.find(s=>s.id==='satis');
-    dlg('📷 Fotoğrafçı',`${item.name} hazırlanıyor...`,1500);
-    state='working';workTimer=curSvc.time;
-  });
-}
-
-function onSvcChoose(s){
-  curSvc=s;
-  if(s.id==='satis'){showSell();return}
-  target={x:780,y:370,label:'STÜDYOYA GİT'};
-  dlg('📷 Fotoğrafçı',`Tamam "${s.name}"! Yeşil ok'u takip ederek stüdyoya gidin, sonra ENTER.`);
-  state='escortToStudio';
-}
-
-function onWorkDone(){
-  if(curSvc.id==='satis'){
-    const amt=selItem.price;
-    money+=amt;score+=Math.floor(amt/10);updateUI();
-    flash();spawnParticles(cam.x,cam.y,15,'#4ecca3');
-    dlg('💰 Teslim',`${selItem.name} verildi! Ödeme: ${amt} ₺`,2500);
-    notify(`+${amt} ₺ kazanıldı!`);
-    target=null;
-    setTimeout(()=>endCustomer(),2800);
-  } else {
-    flash();
-    target={x:380,y:260,label:'BİLGİSAYARA GİT'};
-    dlg('📷 Fotoğrafçı','Tamam! Şimdi bilgisayara gidin, ENTER ile düzenleyin.');
-    state='goComputer';
-  }
-}
-
-function endCustomer(){
-  if(cust)cust.phase='leave';
-  target=null;
-  dlg('👋 Müşteri','Teşekkürler! Hoşça kalın.',2000);
-  setTimeout(()=>{
-    cust=null;curSvc=null;selItem=null;hideDlg();
-    state='idle';cam.x=530;cam.y=380;
-    setTimeout(()=>spawnCust(),R(2000,4000));
-  },2500);
-}
-
-// ========== INPUT ==========
-document.addEventListener('keydown',e=>{
-  keys[e.key]=true;
-  if(e.key==='Enter')handleEnter();
-});
-document.addEventListener('keyup',e=>{keys[e.key]=false});
-
-function handleEnter(){
-  if(state==='escortToStudio'){
-    if(D(cam,target)<60){
-      state='toStudioAuto';target=null;
-      dlg('📷 Fotoğrafçı','Stüdyodayız! Poz verin...',1500);
-      if(cust){cust.tx=780;cust.ty=380;cust.phase='pose'}
-      setTimeout(()=>{
-        state='working';workTimer=curSvc.time;
-        dlg('📷 Fotoğrafçı','📸 Çekim yapılıyor...');
-      },1600);
-    }
-  } else if(state==='goComputer'){
-    if(D(cam,target)<60){
-      state='editing';target=null;
-      dlg('💻 Bilgisayar','Fotoğraf düzenleniyor...');
-      setTimeout(()=>{
-        const amt=curSvc.price;money+=amt;score+=Math.floor(amt/10);updateUI();
-        flash();spawnParticles(cam.x,cam.y,15,'#4ecca3');
-        dlg('💰 Teslim',`Ödeme alındı: ${amt} ₺`,2500);
-        notify(`+${amt} ₺ kazanıldı!`);
-        setTimeout(()=>endCustomer(),2800);
-      },2500);
-    }
-  }
-}
-
-// ========== DRAWING ==========
-function drawShop(){
-  X.fillStyle='#2c2c4a';X.fillRect(0,0,W,H);
-  X.fillStyle='#3a3a5c';X.fillRect(10,220,520,350);
-  X.fillStyle='#2a2a4a';X.fillRect(540,220,510,350);
-  X.fillStyle='#4a4a6a';X.fillRect(530,220,6,140);
-  X.fillRect(530,440,6,130);
-  // Door frame
-  X.fillStyle='#8b6914';X.fillRect(527,355,12,4);X.fillRect(527,436,12,4);
-  X.fillStyle='#6b4e1f';X.fillRect(526,360,14,76);
-  // Door handle
-  X.fillStyle='#c9a84c';X.fillRect(536,390,5,8);
-
-  // --- ENTRANCE ---
-  X.fillStyle='#16213e';X.fillRect(10,220,520,40);
-  X.fillStyle='#e94560';X.font='bold 15px Segoe UI';X.textAlign='center';
-  X.fillText('GİRİŞ ALANI',270,246);
-
-  const fc=['#c9a84c','#8b6914','#c9a84c','#6b4e1f'];
-  const pc=['#e8a4a4','#a4c8e8','#a4e8b4','#e8d4a4'];
-  for(let i=0;i<4;i++){
-    X.fillStyle='#4a4a6a';X.fillRect(25,270+i*55,50,40);
-    X.fillStyle=fc[i];X.fillRect(28,273+i*55,44,34);
-    X.fillStyle=pc[i];X.fillRect(32,277+i*55,36,26);
-  }
-  for(let i=0;i<3;i++){
-    X.fillStyle='#333';X.fillRect(90+i*40,280,30,22);
-    X.fillStyle='#555';X.fillRect(98+i*40,274,14,10);
-    X.fillStyle='#111';X.beginPath();X.arc(105+i*40,291,5,0,Math.PI*2);X.fill();
-  }
-
-  // Seating
-  X.fillStyle='#5c3d2e';X.fillRect(25,400,160,70);
-  X.fillStyle='#7a5540';X.fillRect(25,390,160,15);X.fillRect(25,470,160,10);
-  X.fillStyle='#c0392b';X.fillRect(30,405,50,30);
-  X.fillStyle='#2980b9';X.fillRect(85,405,50,30);
-  X.fillStyle='#27ae60';X.fillRect(140,405,40,30);
-  X.fillStyle='#8b6914';X.fillRect(60,485,90,35);
-
-  // Counter
-  X.fillStyle='#4a3728';X.fillRect(320,270,195,60);
-  X.fillStyle='#5c4a3a';X.fillRect(320,265,195,10);
-
-  // Computer
-  X.fillStyle='#222';X.fillRect(350,235,60,35);
-  X.fillStyle='#3498db';X.fillRect(353,238,54,26);
-  X.fillStyle='#222';X.fillRect(370,270,20,5);
-  X.fillStyle='#4ecca3';X.font='7px monospace';X.textAlign='left';
-  X.fillText('photo_edit.exe',355,250);
-
-  // Cameras on counter
-  X.fillStyle='#333';X.fillRect(430,250,35,20);
-  X.fillStyle='#555';X.fillRect(438,243,18,12);
-  X.fillStyle='#111';X.beginPath();X.arc(447,260,6,0,Math.PI*2);X.fill();
-  X.fillStyle='#444';X.fillRect(470,252,30,18);
-
-  // Cash register
-  X.fillStyle='#555';X.fillRect(325,245,30,25);
-  X.fillStyle='#4ecca3';X.fillRect(327,248,26,12);
-  X.fillStyle='#333';X.fillRect(328,263,24,4);
-
-  // Door
-  X.fillStyle='#1a1a1a';X.fillRect(230,555,80,25);
-
-  // --- STUDIO ---
-  X.fillStyle='#1a1a3a';X.fillRect(540,220,510,40);
-  X.fillStyle='#e94560';X.font='bold 15px Segoe UI';X.textAlign='center';
-  X.fillText('STÜDYO',795,246);
-
-  X.fillStyle='#1a3a5c';X.fillRect(580,270,420,200);
-  X.fillStyle='#1e4468';
-  for(let i=0;i<5;i++)X.fillRect(580,270+i*40,420,2);
-
-  drawLight(620,280);drawLight(960,280);
-
-  X.fillStyle='#555';X.fillRect(793,448,4,30);X.fillRect(803,448,4,30);
-  X.fillStyle='#888';X.fillRect(780,435,40,15);
-
-  X.fillStyle='#aaa';X.fillRect(990,310,50,130);
-  X.fillStyle='#c8dff0';X.fillRect(994,314,42,122);
-
-  X.fillStyle='#444';X.fillRect(700,420,20,15);
-  X.fillStyle='#333';X.fillRect(695,435,4,30);X.fillRect(710,435,4,30);
-}
-
-function drawLight(lx,ly){
-  X.fillStyle='#555';X.fillRect(lx-3,ly+30,6,100);
-  X.fillStyle='#444';X.fillRect(lx-15,ly+125,30,8);
-  X.fillStyle='#333';X.fillRect(lx-18,ly,36,25);
-  X.fillStyle='#ffeb3b';X.fillRect(lx-14,ly+4,28,16);
-  X.fillStyle='rgba(255,235,59,.06)';
-  X.beginPath();X.moveTo(lx-14,ly+25);X.lineTo(lx+14,ly+25);
-  X.lineTo(lx+40,ly+180);X.lineTo(lx-40,ly+180);X.closePath();X.fill();
-}
-
-function drawTargetMarker(tx,ty,label){
-  const pulse=Math.sin(tick*0.08)*0.3+0.7;
-  const radius=20+pulse*8;
-
-  // Outer glow ring
-  X.strokeStyle=`rgba(78,204,163,${pulse*0.4})`;
-  X.lineWidth=3;
-  X.beginPath();X.arc(tx,ty,radius+15,0,Math.PI*2);X.stroke();
-
-  // Inner circle
-  X.fillStyle=`rgba(78,204,163,${pulse*0.3})`;
-  X.beginPath();X.arc(tx,ty,radius,0,Math.PI*2);X.fill();
-
-  // Border
-  X.strokeStyle=`rgba(78,204,163,${pulse*0.8})`;
-  X.lineWidth=2;
-  X.beginPath();X.arc(tx,ty,radius,0,Math.PI*2);X.stroke();
-
-  // Center dot
-  X.fillStyle='#4ecca3';
-  X.beginPath();X.arc(tx,ty,5,0,Math.PI*2);X.fill();
-
-  // Arrow pointing down from above
-  const arrowY=ty-radius-25+Math.sin(tick*0.1)*6;
-  X.fillStyle=`rgba(78,204,163,${pulse})`;
-  X.beginPath();
-  X.moveTo(tx,ty-radius-10);
-  X.lineTo(tx-10,ty-radius-25);
-  X.lineTo(tx+10,ty-radius-25);
-  X.closePath();X.fill();
-
-  // Label
-  X.fillStyle=`rgba(78,204,163,${pulse})`;
-  X.font='bold 13px Segoe UI';X.textAlign='center';
-  X.fillText(label,tx,ty-radius-30);
-
-  // "ENTER" hint
-  const nearTarget=D({x:cam.x,y:cam.y},{x:tx,y:ty})<60;
-  if(nearTarget){
-    X.fillStyle='rgba(255,255,255,'+pulse+')';
-    X.font='bold 14px Segoe UI';X.textAlign='center';
-    X.fillText('▶ ENTER ile onayla',tx,ty+radius+25);
-  }
-
-  // Dotted path line from player to target
-  const dx=tx-cam.x, dy=ty-cam.y;
-  const d=Math.hypot(dx,dy);
-  if(d>30){
-    const steps=Math.floor(d/12);
-    X.fillStyle=`rgba(78,204,163,${pulse*0.5})`;
-    for(let i=1;i<steps;i++){
-      const t=i/steps;
-      const px=cam.x+dx*t;
-      const py=cam.y+dy*t;
-      X.beginPath();X.arc(px,py,2,0,Math.PI*2);X.fill();
-    }
-  }
-}
-
-function drawPerson(px,py,col,name,isCam,dir){
-  X.fillStyle='rgba(0,0,0,.2)';X.beginPath();X.ellipse(px,py+30,12,4,0,0,Math.PI*2);X.fill();
-  X.fillStyle=col;X.fillRect(px-12,py-10,24,35);
-  X.fillStyle='#f0d0b0';X.beginPath();X.arc(px,py-20,10,0,Math.PI*2);X.fill();
-  X.fillStyle=isCam?'#333':'#5c3a1e';
-  X.beginPath();X.arc(px,py-24,10,Math.PI,0);X.fill();
-  X.fillStyle='#222';
-  if(dir==='left'){X.fillRect(px-5,py-21,2,2);X.fillRect(px+1,py-21,2,2)}
-  else if(dir==='right'){X.fillRect(px-3,py-21,2,2);X.fillRect(px+3,py-21,2,2)}
-  else{X.fillRect(px-4,py-21,2,2);X.fillRect(px+2,py-21,2,2)}
-  X.fillStyle='#2c3e50';X.fillRect(px-10,py+25,8,15);X.fillRect(px+2,py+25,8,15);
-  if(name){
-    const tw=X.measureText(name).width;
-    X.fillStyle='rgba(0,0,0,.5)';X.fillRect(px-tw/2-4,py-50,tw+8,16);
-    X.fillStyle='#fff';X.font='bold 11px Segoe UI';X.textAlign='center';
-    X.fillText(name,px,py-38);
-  }
-  if(isCam){
-    X.fillStyle='#222';X.fillRect(px+14,py-5,12,8);
-    X.fillStyle='#4ecca3';X.beginPath();X.arc(px+20,py-1,3,0,Math.PI*2);X.fill();
-  }
-}
-
-function drawParticles(){
-  for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i];p.l-=.025;
-    if(p.l<=0){particles.splice(i,1);continue}
-    X.globalAlpha=p.l;X.fillStyle=p.col;
-    X.beginPath();X.arc(p.x,p.y,p.s,0,Math.PI*2);X.fill();
-    p.x+=p.vx;p.y+=p.vy;p.vy+=.06;
-  }
-  X.globalAlpha=1;
-}
-
-function drawWorkBar(){
-  if(state!=='working'||!curSvc)return;
-  const pct=1-workTimer/curSvc.time;
-  X.fillStyle='rgba(0,0,0,.6)';X.fillRect(W/2-150,555,300,18);
-  X.fillStyle='#4ecca3';X.fillRect(W/2-148,557,296*pct,14);
-  X.fillStyle='#fff';X.font='11px Segoe UI';X.textAlign='center';
-  X.fillText('İşlem yapılıyor...',W/2,568);
-}
-
-function drawHUD(){
-  X.fillStyle='rgba(15,52,96,.85)';X.fillRect(10,5,320,50);X.strokeStyle='#0f3460';X.strokeRect(10,5,320,50);
-  X.fillStyle='#e94560';X.font='bold 13px Segoe UI';X.textAlign='left';
-  const st={
-    idle:'⏳ Yeni müşteri bekleniyor...',
-    custEnter:'🚶 Müşteri giriyor...',
-    choosing:'🤔 Müşteri düşünüyor...',
-    escortToStudio:'🚶 Yeşil hedefe git → ENTER',
-    toStudioAuto:'📸 Stüdyoda...',
-    working:'⚙️ İşlem yapılıyor...',
-    goComputer:'💻 Bilgisayara git → ENTER',
-    editing:'💻 Düzenleniyor...',
-    leave:'👋 Müşteri ayrılıyor...',
-  };
-  X.fillText(st[state]||state,20,25);
-  if(curSvc){X.fillStyle='#4ecca3';X.font='12px Segoe UI';X.fillText(curSvc.icon+' '+curSvc.name,20,43)}
-}
-
-// ========== MAIN LOOP ==========
-let lastT=0,dir='right';
-function loop(t){
-  const dt=t-lastT;lastT=t;tick++;
-
-  // Player movement
-  if(state==='escortToStudio'||state==='goComputer'){
-    let dx=0,dy=0;
-    if(keys['ArrowLeft'])dx=-SPEED;
-    if(keys['ArrowRight'])dx=SPEED;
-    if(keys['ArrowUp'])dy=-SPEED;
-    if(keys['ArrowDown'])dy=SPEED;
-    if(dx||dy){
-      const nx=cam.x+dx,ny=cam.y+dy;
-      if(!isBlocked(nx,cam.y))cam.x=nx;
-      if(!isBlocked(cam.x,ny))cam.y=ny;
-      cam.x=clamp(cam.x,20,W-20);
-      cam.y=clamp(cam.y,235,H-30);
-      if(dx<0)dir='left';else if(dx>0)dir='right';
-    }
-  }
-
-  // Customer follows
-  if(cust&&cust.phase==='follow'){
-    if(D(cam,cust)>50){cust.x=L(cust.x,cam.x,.06);cust.y=L(cust.y,cam.y,.06)}
-  }
-
-  // Customer entering
-  if(cust&&cust.phase==='enter'){
-    cust.y=L(cust.y,450,.04);
-    if(Math.abs(cust.y-450)<3){cust.y=450;cust.phase='talk';autoTalk()}
-  }
-
-  // Customer pose in studio
-  if(cust&&cust.phase==='pose'){
-    cust.x=L(cust.x,780,.08);cust.y=L(cust.y,380,.08);
-  }
-
-  // Work timer
-  if(state==='working'&&workTimer>0){workTimer-=dt;if(workTimer<=0){workTimer=0;onWorkDone()}}
-
-  // Customer leaving
-  if(cust&&cust.phase==='leave'){cust.y+=2;if(cust.y>620)cust=null}
-
-  // ---- Draw ----
-  drawShop();
-
-  // Target marker
-  if(target)drawTargetMarker(target.x,target.y,target.label);
-
-  drawHUD();
-  if(cust&&cust.y<620)drawPerson(cust.x,cust.y,cust.color,cust.name,false,dir);
-  drawPerson(cam.x,cam.y,'#2c3e8f','Fotoğrafçı',true,dir);
-  drawParticles();
-  drawWorkBar();
-
-  requestAnimationFrame(loop);
-}
-
-function autoTalk(){
-  if(!cust)return;
-  dlg('🚶 '+cust.name,'Merhaba! Bir hizmet almak istiyorum.',2000);
-  setTimeout(()=>{
-    dlg('🚶 '+cust.name,P(PHRASES),2500);
-    setTimeout(()=>{
-      svcPanel('Hizmet Seçin',SERVICES.map(s=>({
-        html:`${s.icon} ${s.name} <span class="pr">${s.id==='satis'?'Fiyata göre':s.price+' ₺'}</span>`,
-        data:s
-      })),onSvcChoose);
-    },1500);
-  },2200);
-}
-
-startGame();
-function startGame(){updateUI();spawnCust();requestAnimationFrame(loop)}
-</script>
+<script src="js/config.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/player.js"></script>
+<script src="js/customer.js"></script>
+<script src="js/camera.js"></script>
+<script src="js/economy.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/interaction.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>
